@@ -37,6 +37,12 @@ db.exec(`
   );
 `);
 
+// Migration: add assignee column to existing DBs
+const taskCols = db.prepare('PRAGMA table_info(tasks)').all();
+if (!taskCols.some(c => c.name === 'assignee')) {
+  db.exec("ALTER TABLE tasks ADD COLUMN assignee TEXT NOT NULL DEFAULT ''");
+}
+
 const seedCategories = db.prepare('SELECT COUNT(*) AS count FROM categories').get();
 if (seedCategories.count === 0) {
   const insert = db.prepare('INSERT INTO categories (name, color) VALUES (?, ?)');

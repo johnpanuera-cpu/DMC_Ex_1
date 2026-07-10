@@ -34,17 +34,17 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { title, description = '', priority = 'medium', due_date = null, category_id = null } = req.body;
+  const { title, description = '', priority = 'medium', due_date = null, category_id = null, assignee = '' } = req.body;
 
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'title is required' });
   }
 
   const stmt = db.prepare(`
-    INSERT INTO tasks (title, description, priority, due_date, category_id)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO tasks (title, description, priority, due_date, category_id, assignee)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(title.trim(), description, priority, due_date, category_id);
+  const result = stmt.run(title.trim(), description, priority, due_date, category_id, assignee);
   const task = getTaskWithSubtasks(result.lastInsertRowid);
 
   await notifyTelegram(`Nueva tarea creada: "${task.title}"`);
@@ -67,13 +67,14 @@ router.put('/:id', async (req, res) => {
     due_date = existing.due_date,
     completed = existing.completed,
     category_id = existing.category_id,
+    assignee = existing.assignee,
   } = req.body;
 
   db.prepare(`
     UPDATE tasks
-    SET title = ?, description = ?, priority = ?, due_date = ?, completed = ?, category_id = ?
+    SET title = ?, description = ?, priority = ?, due_date = ?, completed = ?, category_id = ?, assignee = ?
     WHERE id = ?
-  `).run(title, description, priority, due_date, completed ? 1 : 0, category_id, id);
+  `).run(title, description, priority, due_date, completed ? 1 : 0, category_id, assignee, id);
 
   const updated = getTaskWithSubtasks(id);
 

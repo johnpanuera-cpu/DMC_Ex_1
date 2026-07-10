@@ -1,25 +1,76 @@
-const TASKS_URL = "/api/tasks";
-const CATEGORIES_URL = "/api/categories";
+const TASKS_URL = '/api/tasks';
+const CATEGORIES_URL = '/api/categories';
 
-const form = document.getElementById("task-form");
-const list = document.getElementById("task-list");
-const categorySelect = document.getElementById("category_id");
-const statPending = document.getElementById("stat-pending");
-const statDone = document.getElementById("stat-done");
+const MEMBERS = [
+  { id: 'mama', name: 'Mamá', initials: 'M', color: 'oklch(0.55 0.15 25)' },
+  { id: 'papa', name: 'Papá', initials: 'P', color: 'oklch(0.55 0.14 250)' },
+  { id: 'ana',  name: 'Ana',  initials: 'A', color: 'oklch(0.55 0.14 140)' },
+  { id: 'leo',  name: 'Leo',  initials: 'L', color: 'oklch(0.6 0.15 80)' },
+];
+
+const MONTH_ABBR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const PRIORITY_LABEL = { high: 'Alta', medium: 'Media', low: 'Baja' };
 
 let categories = [];
+let filters = { status: 'all', priority: '', category: '', assignee: '' };
+let newAssignee = '';
 
+// DOM refs
+const taskList     = document.getElementById('task-list');
+const titleInput   = document.getElementById('title');
+const descInput    = document.getElementById('description');
+const categorySelect = document.getElementById('category_id');
+const prioritySelect = document.getElementById('priority');
+const dueDateInput = document.getElementById('due_date');
+const addBtn       = document.getElementById('add-btn');
+const statPending  = document.getElementById('stat-pending');
+const statDone     = document.getElementById('stat-done');
+const filterPriority  = document.getElementById('filter-priority');
+const filterCategory  = document.getElementById('filter-category');
+const filterAssignee  = document.getElementById('filter-assignee');
+const memberPicksEl   = document.getElementById('member-picks');
+
+// ── Theme switcher ───────────────────────────────────
+document.getElementById('theme-tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn || !btn.dataset.theme) return;
+  document.querySelectorAll('#theme-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.documentElement.dataset.theme = btn.dataset.theme;
+});
+
+// ── Member picks ─────────────────────────────────────
+function renderMemberPicks() {
+  memberPicksEl.innerHTML = '';
+  for (const m of MEMBERS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'member-pick-btn' + (newAssignee === m.id ? ' selected' : '');
+    btn.style.background = m.color;
+    btn.title = m.name;
+    btn.textContent = m.initials;
+    btn.addEventListener('click', () => {
+      newAssignee = newAssignee === m.id ? '' : m.id;
+      renderMemberPicks();
+    });
+    memberPicksEl.appendChild(btn);
+  }
+}
+
+// ── Categories ───────────────────────────────────────
 async function loadCategories() {
   const res = await fetch(CATEGORIES_URL);
   categories = await res.json();
 
-  categorySelect.innerHTML =
-    '<option value="">Sin categoría</option>' +
-    categories
-      .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
-      .join("");
+  const catOpts = categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  categorySelect.innerHTML = '<option value="">Sin categoría</option>' + catOpts;
+  filterCategory.innerHTML = '<option value="">Categoría</option>' + catOpts;
+
+  const assigneeOpts = MEMBERS.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+  filterAssignee.innerHTML = '<option value="">Asignado a</option>' + assigneeOpts;
 }
 
+// ── Tasks ────────────────────────────────────────────
 async function fetchTasks() {
   const res = await fetch(TASKS_URL);
   const tasks = await res.json();
@@ -27,183 +78,168 @@ async function fetchTasks() {
   renderTasks(tasks);
 }
 
+function applyFilters(tasks) {
+  return tasks.filter(t => {
+    if (filters.status === 'pending' && t.completed) return false;
+    if (filters.status === 'done' && !t.completed) return false;
+    if (filters.priority && t.priority !== filters.priority) return false;
+    if (filters.category && t.category_id !== parseInt(filters.category)) return false;
+    if (filters.assignee && t.assignee !== filters.assignee) return false;
+    return true;
+  });
+}
+
 function renderStats(tasks) {
-  const pending = tasks.filter((t) => !t.completed).length;
+  const pending = tasks.filter(t => !t.completed).length;
   const done = tasks.length - pending;
-  statPending.textContent = `${pending} pendiente${pending === 1 ? "" : "s"}`;
-  statDone.textContent = `${done} completada${done === 1 ? "" : "s"}`;
+  statPending.textContent = `${pending} pendiente${pending !== 1 ? 's' : ''}`;
+  statDone.textContent = `${done} completada${done !== 1 ? 's' : ''}`;
 }
 
 function renderTasks(tasks) {
-  list.innerHTML = "";
+  const filtered = applyFilters(tasks);
+  taskList.innerHTML = '';
 
-  if (tasks.length === 0) {
-    list.innerHTML =
-      '<li class="empty-state">No hay tareas todavía. ¡Agrega una!</li>';
+  if (filtered.length === 0) {
+    const div = document.createElement('div');
+    div.className = 'empty-state';
+    div.textContent = tasks.length === 0
+      ? '¡No hay tareas todavía! Agrega una arriba.'
+      : 'No hay tareas con estos filtros.';
+    taskList.appendChild(div);
     return;
   }
 
-  for (const task of tasks) {
-    list.appendChild(renderTaskItem(task));
+  for (const task of filtered) {
+    taskList.appendChild(renderTaskCard(task));
   }
 }
 
-function renderTaskItem(task) {
-  const li = document.createElement("li");
-  li.className = `task-item priority-${task.priority} ${task.completed ? "completed" : ""}`;
-
-  const meta = task.due_date ? `Vence: ${task.due_date}` : "";
-  const categoryBadge = task.category_name
-    ? `<span class="badge" style="background:${task.category_color}">${escapeHtml(task.category_name)}</span>`
-    : "";
-
-  const progressPct =
-    task.subtasks_total > 0
-      ? Math.round((task.subtasks_done / task.subtasks_total) * 100)
-      : null;
-
-  li.innerHTML = `
-    <input type="checkbox" ${task.completed ? "checked" : ""} data-action="toggle" data-id="${task.id}" />
-    <div class="task-content">
-      <div class="task-title-row">
-        <span class="task-title">${escapeHtml(task.title)}</span>
-        ${categoryBadge}
-      </div>
-      ${task.description ? `<div class="task-description">${escapeHtml(task.description)}</div>` : ""}
-      ${meta ? `<div class="task-meta">${escapeHtml(meta)}</div>` : ""}
-      ${
-        progressPct !== null
-          ? `
-        <div class="progress-bar"><div class="progress-fill" style="width:${progressPct}%"></div></div>
-        <div class="progress-label">${task.subtasks_done}/${task.subtasks_total} subtareas</div>
-      `
-          : ""
-      }
-      <ul class="subtask-list" data-task-id="${task.id}">
-        ${task.subtasks.map(renderSubtaskItem).join("")}
-      </ul>
-      <form class="subtask-form" data-task-id="${task.id}">
-        <input type="text" placeholder="Agregar subtarea..." data-role="subtask-input" />
-        <button type="submit">+</button>
-      </form>
-    </div>
-    <div class="task-actions">
-      <button class="delete" data-action="delete" data-id="${task.id}">Eliminar</button>
-    </div>
-  `;
-
-  return li;
+function formatDue(dateStr) {
+  if (!dateStr) return '';
+  const dt = new Date(dateStr + 'T00:00:00');
+  if (isNaN(dt.getTime())) return '';
+  return `${dt.getDate()} ${MONTH_ABBR[dt.getMonth()]}`;
 }
 
-function renderSubtaskItem(subtask) {
-  return `
-    <li class="subtask-item ${subtask.completed ? "completed" : ""}">
-      <input type="checkbox" ${subtask.completed ? "checked" : ""} data-action="toggle-subtask" data-task-id="${subtask.task_id}" data-subtask-id="${subtask.id}" />
-      <span>${escapeHtml(subtask.title)}</span>
-      <button data-action="delete-subtask" data-task-id="${subtask.task_id}" data-subtask-id="${subtask.id}">×</button>
-    </li>
+function renderTaskCard(task) {
+  const member = MEMBERS.find(m => m.id === task.assignee) || null;
+  const dueLabel = formatDue(task.due_date);
+  const priorityLabel = PRIORITY_LABEL[task.priority] || 'Media';
+
+  const div = document.createElement('div');
+  div.className = `task-card priority-${task.priority}`;
+
+  const avatarHtml = member
+    ? `<div class="assignee-avatar" style="background:${member.color}" title="${escapeHtml(member.name)}">${member.initials}</div>`
+    : '';
+
+  const chipsHtml = [
+    task.category_name ? `<span class="chip-tag">${escapeHtml(task.category_name)}</span>` : '',
+    dueLabel           ? `<span class="chip-tag">${dueLabel}</span>` : '',
+  ].filter(Boolean).join('');
+
+  div.innerHTML = `
+    <button class="task-checkbox${task.completed ? ' checked' : ''}"
+      data-action="toggle" data-id="${task.id}" data-completed="${task.completed ? 1 : 0}"
+      type="button">${task.completed ? '✓' : ''}</button>
+    ${avatarHtml}
+    <div class="task-content">
+      <div class="task-header">
+        <span class="task-title${task.completed ? ' done-title' : ''}">${escapeHtml(task.title)}</span>
+        <span class="priority-badge">${priorityLabel}</span>
+      </div>
+      ${task.description ? `<div class="task-desc">${escapeHtml(task.description)}</div>` : ''}
+      ${chipsHtml ? `<div class="task-chips">${chipsHtml}</div>` : ''}
+    </div>
+    <button class="delete-btn" data-action="delete" data-id="${task.id}" type="button">×</button>
   `;
+
+  return div;
 }
 
 function escapeHtml(str) {
-  const div = document.createElement("div");
+  if (!str) return '';
+  const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
 }
 
-const submitButton = form.querySelector('button[type="submit"]');
-const submitButtonDefaultText = submitButton.textContent;
+// ── Agregar tarea ────────────────────────────────────
+async function addTask() {
+  const title = titleInput.value.trim();
+  if (!title) return;
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const title = document.getElementById("title").value;
-  const description = document.getElementById("description").value;
-  const priority = document.getElementById("priority").value;
-  const due_date = document.getElementById("due_date").value || null;
-  const category_id = categorySelect.value || null;
-
-  submitButton.disabled = true;
-  submitButton.classList.add("is-loading");
-  submitButton.textContent = "Agregando...";
+  addBtn.disabled = true;
+  addBtn.textContent = 'Agregando...';
 
   try {
     await fetch(TASKS_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title,
-        description,
-        priority,
-        due_date,
-        category_id,
+        description: descInput.value.trim(),
+        priority:    prioritySelect.value,
+        due_date:    dueDateInput.value || null,
+        category_id: categorySelect.value || null,
+        assignee:    newAssignee,
       }),
     });
 
-    form.reset();
+    titleInput.value  = '';
+    descInput.value   = '';
+    dueDateInput.value = '';
+    newAssignee = '';
+    renderMemberPicks();
     await fetchTasks();
   } finally {
-    submitButton.disabled = false;
-    submitButton.classList.remove("is-loading");
-    submitButton.textContent = submitButtonDefaultText;
+    addBtn.disabled = false;
+    addBtn.textContent = 'Agregar tarea';
   }
-});
+}
 
-list.addEventListener("click", async (e) => {
-  const { action, id, taskId, subtaskId } = e.target.dataset;
-  if (!action) return;
+addBtn.addEventListener('click', addTask);
+titleInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addTask(); });
 
-  if (action === "toggle") {
+// ── Eventos en la lista ──────────────────────────────
+taskList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const { action, id, completed } = btn.dataset;
+
+  if (action === 'toggle') {
     await fetch(`${TASKS_URL}/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: e.target.checked }),
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed: completed === '0' }),
     });
     await fetchTasks();
   }
 
-  if (action === "delete") {
-    await fetch(`${TASKS_URL}/${id}`, { method: "DELETE" });
-    await fetchTasks();
-  }
-
-  if (action === "toggle-subtask") {
-    await fetch(`${TASKS_URL}/${taskId}/subtasks/${subtaskId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completed: e.target.checked }),
-    });
-    await fetchTasks();
-  }
-
-  if (action === "delete-subtask") {
-    await fetch(`${TASKS_URL}/${taskId}/subtasks/${subtaskId}`, {
-      method: "DELETE",
-    });
+  if (action === 'delete') {
+    await fetch(`${TASKS_URL}/${id}`, { method: 'DELETE' });
     await fetchTasks();
   }
 });
 
-list.addEventListener("submit", async (e) => {
-  if (!e.target.classList.contains("subtask-form")) return;
-  e.preventDefault();
-
-  const taskId = e.target.dataset.taskId;
-  const input = e.target.querySelector('[data-role="subtask-input"]');
-  const title = input.value.trim();
-
-  if (!title) return;
-
-  await fetch(`${TASKS_URL}/${taskId}/subtasks`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
-  });
-
-  await fetchTasks();
+// ── Filtros ──────────────────────────────────────────
+document.getElementById('filter-status').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  document.querySelectorAll('#filter-status .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filters.status = btn.dataset.value;
+  fetchTasks();
 });
 
+filterPriority.addEventListener('change', () => { filters.priority = filterPriority.value; fetchTasks(); });
+filterCategory.addEventListener('change', () => { filters.category = filterCategory.value; fetchTasks(); });
+filterAssignee.addEventListener('change', () => { filters.assignee = filterAssignee.value; fetchTasks(); });
+
+// ── Init ─────────────────────────────────────────────
 (async function init() {
+  renderMemberPicks();
   await loadCategories();
   await fetchTasks();
 })();

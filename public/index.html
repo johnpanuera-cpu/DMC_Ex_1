@@ -1,39 +1,87 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="white">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mi To-Do List</title>
+  <title>Mi lista de tareas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="app-header">
-      <h1>Mi To-Do List</h1>
-      <div class="stats">
-        <span id="stat-pending" class="stat">0 pendientes</span>
-        <span id="stat-done" class="stat stat-done">0 completadas</span>
-      </div>
-    </header>
+  <div class="page">
+    <div class="container">
 
-    <form id="task-form" class="task-form">
-      <input type="text" id="title" placeholder="¿Qué hay que hacer?" required />
-      <textarea id="description" placeholder="Descripción (opcional)"></textarea>
-      <div class="task-form-row">
-        <select id="category_id"></select>
-        <select id="priority">
-          <option value="low">Baja</option>
-          <option value="medium" selected>Media</option>
+      <div class="theme-bar">
+        <div class="tab-track" id="theme-tabs">
+          <button class="tab-btn" data-theme="warm">
+            <span class="dot" style="background:oklch(0.9 0.05 75)"></span>Cálido
+          </button>
+          <button class="tab-btn" data-theme="dark">
+            <span class="dot" style="background:oklch(0.28 0.012 260)"></span>Oscuro
+          </button>
+          <button class="tab-btn active" data-theme="white">
+            <span class="dot dot-white"></span>Blanco
+          </button>
+        </div>
+      </div>
+
+      <div class="app-header">
+        <div>
+          <h1>Mi lista de tareas</h1>
+          <p class="subtitle">Organiza y da seguimiento a tus pendientes</p>
+        </div>
+        <div class="stats">
+          <span id="stat-pending" class="chip chip-pending">0 pendientes</span>
+          <span id="stat-done" class="chip chip-done">0 completadas</span>
+        </div>
+      </div>
+
+      <div class="card form-card">
+        <div class="form-row-main">
+          <input type="text" id="title" placeholder="¿Qué hay que hacer?" class="input-main" />
+          <button id="add-btn" class="btn-primary" type="button">Agregar tarea</button>
+        </div>
+        <div class="form-row-extras">
+          <textarea id="description" placeholder="Descripción (opcional)" class="input-desc"></textarea>
+          <select id="category_id" class="select-pill"></select>
+          <select id="priority" class="select-pill">
+            <option value="low">Baja</option>
+            <option value="medium" selected>Media</option>
+            <option value="high">Alta</option>
+          </select>
+          <input type="date" id="due_date" class="input-pill" />
+        </div>
+        <div class="form-row-assignee">
+          <span class="assignee-label">Asignar a</span>
+          <div id="member-picks" class="member-picks"></div>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="tab-track" id="filter-status">
+          <button class="tab-btn active" data-value="all">Todas</button>
+          <button class="tab-btn" data-value="pending">Pendientes</button>
+          <button class="tab-btn" data-value="done">Completadas</button>
+        </div>
+        <select id="filter-priority" class="select-filter">
+          <option value="">Prioridad</option>
           <option value="high">Alta</option>
+          <option value="medium">Media</option>
+          <option value="low">Baja</option>
         </select>
-        <input type="date" id="due_date" />
-        <button type="submit">Agregar</button>
+        <select id="filter-category" class="select-filter">
+          <option value="">Categoría</option>
+        </select>
+        <select id="filter-assignee" class="select-filter">
+          <option value="">Asignado a</option>
+        </select>
       </div>
-    </form>
 
-    <ul id="task-list" class="task-list"></ul>
-  </main>
+      <div id="task-list"></div>
 
+    </div>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>
